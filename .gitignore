@@ -6,6 +6,10 @@ dist/
 build/
 .firebase/
 
+# Base de datos local de prueba y respaldos
+.pgdata/
+firestore-backup.json
+
 # Variables de entorno y credenciales
 .env
 .env.*

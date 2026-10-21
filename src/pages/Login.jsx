@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { dataClient } from '@/api/dataClient';
 import { Button } from '@/components/ui/button';
 import GoogleIcon from '@/components/GoogleIcon';
 import BrandLogo from '@/components/BrandLogo';
@@ -15,6 +16,7 @@ export default function Login() {
     isFirebaseConfigured,
     renderGoogleButton,
     signInWithGoogle,
+    checkUserAuth,
   } = useAuth();
 
   useEffect(() => {
@@ -23,6 +25,31 @@ export default function Login() {
       renderGoogleButton(buttonRef.current, { width: 320, text: 'continue_with' });
     }
   }, [isGoogleReady, renderGoogleButton]);
+
+  const handleLocalDevLogin = async (role) => {
+    const devUser =
+      role === 'admin'
+        ? {
+            id: '1',
+            email: 'vazquezhernandezsebastian1@gmail.com',
+            full_name: 'Sebastián Vázquez (Admin)',
+            name: 'Sebastián Vázquez (Admin)',
+            role: 'admin',
+            is_active: true,
+          }
+        : {
+            id: '2',
+            email: 'ana.martinez@alumno.pulselab.edu.mx',
+            full_name: 'Ana Sofía Martínez',
+            name: 'Ana Sofía Martínez',
+            role: 'student',
+            is_active: true,
+          };
+
+    await dataClient.entities.User.create(devUser);
+    await dataClient.auth.setSession(devUser);
+    await checkUserAuth();
+  };
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
@@ -42,8 +69,24 @@ export default function Login() {
         ) : googleClientId ? (
           <div className="flex justify-center" ref={buttonRef} />
         ) : (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-foreground">
-            Falta configurar VITE_GOOGLE_CLIENT_ID en el archivo .env.
+          <div className="space-y-3">
+            <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-xs text-muted-foreground">
+              <p className="font-semibold text-primary mb-1">Modo Pruebas Locales (PostgreSQL)</p>
+              Conectado a las 5 tablas relacionales locales (<code className="text-foreground">usuario</code>, <code className="text-foreground">caso_clinico</code>, <code className="text-foreground">pregunta</code>, <code className="text-foreground">resultado</code>, <code className="text-foreground">respuesta_alumno</code>).
+            </div>
+            <Button
+              onClick={() => handleLocalDevLogin('admin')}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Entrar como Docente / Admin (Local)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleLocalDevLogin('student')}
+              className="w-full border-primary/40 text-primary hover:bg-primary/10"
+            >
+              Entrar como Estudiante (Local)
+            </Button>
           </div>
         )}
 

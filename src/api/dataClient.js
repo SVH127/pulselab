@@ -12,6 +12,8 @@ import {
   where,
 } from 'firebase/firestore';
 import { firestoreDb, isFirebaseConfigured } from '@/api/firebaseClient';
+import { isSupabaseConfigured } from '@/api/supabaseClient';
+import { supabaseEntities } from '@/api/supabaseAdapter';
 
 const STORAGE_PREFIX = 'virtual_beat';
 const USER_STORAGE_KEY = `${STORAGE_PREFIX}_user`;
@@ -71,6 +73,29 @@ const sortRecords = (records, sortBy) => {
     return (aValue > bValue ? 1 : -1) * (descending ? -1 : 1);
   });
 };
+
+const callLocalPg = async (payload) => {
+  const res = await fetch('/api/local-pg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Error en PostgreSQL local');
+  return json.data;
+};
+
+const localPgEntity = (entityKey) => ({
+  list: (sortBy) => callLocalPg({ entity: entityKey, action: 'list', sortBy }),
+  get: (id) => callLocalPg({ entity: entityKey, action: 'get', id }),
+  filter: (criteria = {}, sortBy) =>
+    callLocalPg({ entity: entityKey, action: 'filter', criteria, sortBy }),
+  create: (data) => callLocalPg({ entity: entityKey, action: 'create', data }),
+  update: (id, data) => callLocalPg({ entity: entityKey, action: 'update', id, data }),
+  delete: (id) => callLocalPg({ entity: entityKey, action: 'delete', id }),
+  bulkCreate: async (items = []) =>
+    Promise.all(items.map((data) => callLocalPg({ entity: entityKey, action: 'create', data }))),
+});
 
 const firestoreEntity = (name) => {
   const col = () => collection(firestoreDb, name);
@@ -174,7 +199,21 @@ const localEntity = (name) => {
   };
 };
 
-const createEntity = (name) => (isFirebaseConfigured ? firestoreEntity(name) : localEntity(name));
+const isLocalPostgresEnabled =
+  import.meta.env.DEV &&
+  !isSupabaseConfigured &&
+  !isFirebaseConfigured &&
+  import.meta.env.VITE_USE_LOCAL_PG !== 'false';
+
+const createEntity = (name, supabaseEntityKey) => {
+  if (isSupabaseConfigured && supabaseEntityKey && supabaseEntities[supabaseEntityKey]) {
+    return supabaseEntities[supabaseEntityKey];
+  }
+  if (isLocalPostgresEnabled && supabaseEntityKey) {
+    return localPgEntity(supabaseEntityKey);
+  }
+  return isFirebaseConfigured ? firestoreEntity(name) : localEntity(name);
+};
 
 const getUser = () => readJson(USER_STORAGE_KEY, null);
 
@@ -199,11 +238,11 @@ export const dataClient = {
     },
   },
   entities: {
-    ClinicalCase: createEntity('clinical_cases'),
-    StudentAccount: createEntity('student_accounts'),
-    StudentResult: createEntity('student_results'),
-    User: createEntity('users'),
-    PendingUser: createEntity('pending_users'),
+    ClinicalCase: createEntity('clinical_cases', 'ClinicalCase'),
+    StudentAccount: createEntity('student_accounts', 'StudentAccount'),
+    StudentResult: createEntity('student_results', 'StudentResult'),
+    User: createEntity('users', 'User'),
+    PendingUser: createEntity('pending_users', 'PendingUser'),
   },
   users: {
     inviteUser: async (email, role = 'user', data = {}) => {
