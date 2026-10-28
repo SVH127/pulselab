@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dataClient } from '@/api/dataClient';
-import { PlusCircle, BookOpen, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { isFirebaseConfigured } from '@/api/firebaseClient';
+import { isSupabaseConfigured } from '@/api/supabaseClient';
+import { syncFirestoreToSupabase } from '@/api/firestoreToSupabaseSync';
+import { PlusCircle, BookOpen, Edit2, Trash2, Eye, EyeOff, Database, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -9,6 +12,7 @@ export default function CaseList() {
   const navigate = useNavigate();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
 
   useEffect(() => { load(); }, []);
@@ -16,6 +20,19 @@ export default function CaseList() {
   const load = () => {
     setLoading(true);
     dataClient.entities.ClinicalCase.list('-created_date').then(setCases).finally(() => setLoading(false));
+  };
+
+  const handleSyncFromFirestore = async () => {
+    try {
+      setSyncing(true);
+      const res = await syncFirestoreToSupabase();
+      alert(`Sincronización completada hacia Supabase:\n• Casos nuevos importados: ${res.casos}\n• Usuarios sincronizados: ${res.usuarios}\n• Resultados importados: ${res.resultados}`);
+      load();
+    } catch (err) {
+      alert(`No se pudo importar desde Firestore: ${err.message}`);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleDelete = async (c) => {
@@ -33,15 +50,28 @@ export default function CaseList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Banco de Casos</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Administra todos los casos clínicos.</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Administra todos los casos clínicos (Base Relacional Supabase).</p>
         </div>
-        <Button onClick={() => navigate('/teacher/cases/new')} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 flex-shrink-0">
-          <PlusCircle className="w-4 h-4" />
-          Nuevo Caso
-        </Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isFirebaseConfigured && isSupabaseConfigured && (
+            <Button
+              variant="outline"
+              onClick={handleSyncFromFirestore}
+              disabled={syncing}
+              className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+            >
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+              Importar desde Firestore
+            </Button>
+          )}
+          <Button onClick={() => navigate('/teacher/cases/new')} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+            <PlusCircle className="w-4 h-4" />
+            Nuevo Caso
+          </Button>
+        </div>
       </div>
 
       <Input
