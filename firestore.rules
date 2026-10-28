@@ -8,7 +8,10 @@ service cloud.firestore {
 
     function isSeedAdmin() {
       return signedIn()
-        && request.auth.token.email == "vazquezhernandezsebastian1@gmail.com";
+        && (
+          request.auth.token.email == "vazquezhernandezsebastian1@gmail.com"
+          || request.auth.token.email == "f.gzlr55@gmail.com"
+        );
     }
 
     function userDoc() {

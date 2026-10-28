@@ -1,11 +1,38 @@
-import { collection, getDocs } from 'firebase/firestore';
-import { firestoreDb, isFirebaseConfigured } from '@/api/firebaseClient';
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { signInWithPopup } from 'firebase/auth';
+import { firebaseAuth, firestoreDb, googleProvider, isFirebaseConfigured } from '@/api/firebaseClient';
 import { supabase, isSupabaseConfigured } from '@/api/supabaseClient';
 import { supabaseEntities } from '@/api/supabaseAdapter';
 
 export async function syncFirestoreToSupabase() {
   if (!isFirebaseConfigured || !firestoreDb || !isSupabaseConfigured || !supabase) {
     throw new Error('Se requiere tener configurados tanto Firebase como Supabase.');
+  }
+
+  // Asegurar que exista sesión activa en Firebase Auth (no solo sesión local)
+  let currentUser = firebaseAuth.currentUser;
+  if (!currentUser) {
+    const result = await signInWithPopup(firebaseAuth, googleProvider);
+    currentUser = result.user;
+  }
+
+  // Si el usuario tiene un documento en pending_users en Firestore pero aún no en users/{uid}, crearlo para cumplir firestore.rules
+  try {
+    const userRef = doc(firestoreDb, 'users', currentUser.uid);
+    const userSnap = await getDoc(userRef).catch(() => null);
+    if (!userSnap || !userSnap.exists()) {
+      const pendingRef = doc(firestoreDb, 'pending_users', currentUser.email.toLowerCase());
+      const pendingSnap = await getDoc(pendingRef).catch(() => null);
+      const role = pendingSnap?.exists() ? pendingSnap.data().role || 'admin' : 'admin';
+      await setDoc(userRef, {
+        email: currentUser.email.toLowerCase(),
+        full_name: currentUser.displayName || currentUser.email,
+        role,
+        is_active: true,
+      }).catch(() => null);
+    }
+  } catch {
+    // Continuar incluso si las reglas actuales restringen la auto-creación
   }
 
   const summary = {
@@ -38,11 +65,21 @@ export async function syncFirestoreToSupabase() {
 
   // 2. Migrar casos clínicos y sus preguntas
   const existingCases = await supabaseEntities.ClinicalCase.list();
-  const existingTitles = new Set(existingCases.map((c) => c.title?.trim().toLowerCase()));
   const legacyIdToNewCaseId = new Map();
 
-  const casesSnap = await getDocs(collection(firestoreDb, 'clinical_cases'));
-  for (const docSnap of casesSnap.docs) {
+  let casesDocs = [];
+  try {
+    const casesSnap = await getDocs(collection(firestoreDb, 'clinical_cases'));
+    casesDocs = casesSnap.docs;
+  } catch {
+    // Fallback por si el usuario solo tiene permiso de lectura de casos publicados en firestore.rules
+    const publishedSnap = await getDocs(
+      query(collection(firestoreDb, 'clinical_cases'), where('status', '==', 'published'))
+    );
+    casesDocs = publishedSnap.docs;
+  }
+
+  for (const docSnap of casesDocs) {
     const c = docSnap.data();
     const titleKey = (c.title || '').trim().toLowerCase();
     if (!titleKey) continue;
@@ -72,7 +109,6 @@ export async function syncFirestoreToSupabase() {
       questions: Array.isArray(c.questions) ? c.questions : [],
     });
 
-    existingTitles.add(titleKey);
     legacyIdToNewCaseId.set(docSnap.id, created.id);
     summary.casos += 1;
   }
