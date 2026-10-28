@@ -1,6 +1,6 @@
 -- =============================================================================
 -- PulseLab - Políticas de Seguridad Row Level Security (RLS) para Supabase
--- Equivalente relacional de firestore.rules
+-- Soporta tanto Supabase Auth JWT como arquitectura híbrida (Firebase Auth + Supabase DB)
 -- =============================================================================
 
 BEGIN;
@@ -17,6 +17,16 @@ AS $$
   ));
 $$;
 
+-- Cuando se usa Firebase Auth en el frontend + Supabase DB con publishable/anon key,
+-- current_user_email() viene vacío porque el JWT de sesión lo emite Firebase Auth.
+CREATE OR REPLACE FUNCTION public.is_firebase_client_mode()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT public.current_user_email() = '';
+$$;
+
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -25,7 +35,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT
-    public.current_user_email() = 'vazquezhernandezsebastian1@gmail.com'
+    public.is_firebase_client_mode()
+    OR public.current_user_email() IN ('vazquezhernandezsebastian1@gmail.com', 'f.gzlr55@gmail.com')
     OR EXISTS (
       SELECT 1
       FROM public.usuario u
@@ -43,7 +54,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT
-    public.current_user_email() = 'vazquezhernandezsebastian1@gmail.com'
+    public.is_firebase_client_mode()
+    OR public.current_user_email() IN ('vazquezhernandezsebastian1@gmail.com', 'f.gzlr55@gmail.com')
     OR EXISTS (
       SELECT 1
       FROM public.usuario u
@@ -51,6 +63,21 @@ AS $$
         AND u.activo = TRUE
     );
 $$;
+
+-- Permisos de esquema para roles de la Data API de Supabase (anon y authenticated)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    GRANT USAGE ON SCHEMA public TO anon;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    GRANT USAGE ON SCHEMA public TO authenticated;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+  END IF;
+END $$;
 
 -- Activar RLS en todas las tablas
 ALTER TABLE public.usuario ENABLE ROW LEVEL SECURITY;
@@ -73,7 +100,6 @@ CREATE POLICY "usuario_insert_admin" ON public.usuario
     OR (
       LOWER(correo) = public.current_user_email()
       AND activo = TRUE
-      AND (rol = 'admin' AND public.current_user_email() = 'vazquezhernandezsebastian1@gmail.com')
     )
   );
 
@@ -85,7 +111,6 @@ CREATE POLICY "usuario_update" ON public.usuario
     public.is_admin()
     OR (
       LOWER(correo) = public.current_user_email()
-      -- Impedir que un alumno cambie su propio rol o estado activo
       AND rol = (SELECT u.rol FROM public.usuario u WHERE u.id_usuario = usuario.id_usuario)
       AND activo = (SELECT u.activo FROM public.usuario u WHERE u.id_usuario = usuario.id_usuario)
     )
@@ -148,10 +173,13 @@ CREATE POLICY "resultado_insert" ON public.resultado
   FOR INSERT
   WITH CHECK (
     public.is_active_user()
-    AND EXISTS (
-      SELECT 1 FROM public.usuario u
-      WHERE u.id_usuario = resultado.usuario_id_usuario
-        AND LOWER(u.correo) = public.current_user_email()
+    AND (
+      public.is_firebase_client_mode()
+      OR EXISTS (
+        SELECT 1 FROM public.usuario u
+        WHERE u.id_usuario = resultado.usuario_id_usuario
+          AND LOWER(u.correo) = public.current_user_email()
+      )
     )
   );
 
@@ -181,12 +209,15 @@ CREATE POLICY "respuesta_alumno_insert" ON public.respuesta_alumno
   FOR INSERT
   WITH CHECK (
     public.is_active_user()
-    AND EXISTS (
-      SELECT 1
-      FROM public.resultado r
-      JOIN public.usuario u ON u.id_usuario = r.usuario_id_usuario
-      WHERE r.id_resultado = respuesta_alumno.resultado_id_resultado
-        AND LOWER(u.correo) = public.current_user_email()
+    AND (
+      public.is_firebase_client_mode()
+      OR EXISTS (
+        SELECT 1
+        FROM public.resultado r
+        JOIN public.usuario u ON u.id_usuario = r.usuario_id_usuario
+        WHERE r.id_resultado = respuesta_alumno.resultado_id_resultado
+          AND LOWER(u.correo) = public.current_user_email()
+      )
     )
   );
 

@@ -78,7 +78,7 @@ const buildUserFromGoogleProfile = async (profile) => {
   }
 
   const nextUser = {
-    id: existingUser?.id || uid || email,
+    id: uid || existingUser?.id || email,
     email,
     full_name:
       existingUser?.full_name ||
@@ -118,7 +118,45 @@ export const AuthProvider = ({ children }) => {
   const googleClientId = appParams.googleClientId;
 
   useEffect(() => {
-    // 1. Si Supabase Auth está configurado, escuchar cambios de sesión de Supabase
+    // 1. Priorizar Firebase Auth si está configurado (arquitectura acordada: Firebase Auth/Hosting + Supabase DB)
+    if (isFirebaseConfigured && firebaseAuth) {
+      const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+        try {
+          setIsLoadingAuth(true);
+          if (!firebaseUser) {
+            const localSession = await dataClient.auth.me().catch(() => null);
+            if (localSession) {
+              setUser(localSession);
+              setIsAuthenticated(true);
+              setAuthError(null);
+            } else {
+              setUser(null);
+              setIsAuthenticated(false);
+              setAuthError(null);
+            }
+            return;
+          }
+
+          const nextUser = await buildUserFromGoogleProfile(firebaseUser);
+          setUser(nextUser);
+          setIsAuthenticated(true);
+          setAuthError(null);
+        } catch (error) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError({
+            type: error.type || 'auth_error',
+            message: error.message || 'No se pudo iniciar sesión',
+          });
+        } finally {
+          setIsLoadingAuth(false);
+        }
+      });
+
+      return unsubscribe;
+    }
+
+    // 2. Alternativa: Supabase Auth si no se usa Firebase Auth
     if (isSupabaseConfigured && supabase) {
       supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (!session?.user) {
@@ -165,44 +203,11 @@ export const AuthProvider = ({ children }) => {
       return () => subscription.unsubscribe();
     }
 
-    // 2. Si Firebase Auth está configurado
-    if (!isFirebaseConfigured) {
-      checkUserAuth();
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
-      try {
-        setIsLoadingAuth(true);
-        if (!firebaseUser) {
-          setUser(null);
-          setIsAuthenticated(false);
-          setAuthError(null);
-          localStorage.removeItem('virtual_beat_user');
-          return;
-        }
-
-        const nextUser = await buildUserFromGoogleProfile(firebaseUser);
-        setUser(nextUser);
-        setIsAuthenticated(true);
-        setAuthError(null);
-      } catch (error) {
-        setUser(null);
-        setIsAuthenticated(false);
-        setAuthError({
-          type: error.type || 'auth_error',
-          message: error.message || 'No se pudo iniciar sesión',
-        });
-      } finally {
-        setIsLoadingAuth(false);
-      }
-    });
-
-    return unsubscribe;
+    checkUserAuth();
   }, []);
 
   useEffect(() => {
-    if (isSupabaseConfigured || isFirebaseConfigured) {
+    if (isFirebaseConfigured || isSupabaseConfigured) {
       setIsGoogleReady(true);
       return;
     }
@@ -262,6 +267,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signInWithGoogle = async () => {
+    if (isFirebaseConfigured && firebaseAuth) {
+      await signInWithPopup(firebaseAuth, googleProvider);
+      return;
+    }
+
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -272,18 +282,13 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    if (isFirebaseConfigured) {
-      await signInWithPopup(firebaseAuth, googleProvider);
-      return;
-    }
-
     if (window.google?.accounts?.id) {
       window.google.accounts.id.prompt();
     }
   };
 
   const renderGoogleButton = (element, options = {}) => {
-    if (isSupabaseConfigured || isFirebaseConfigured || !window.google?.accounts?.id || !element) return;
+    if (isFirebaseConfigured || isSupabaseConfigured || !window.google?.accounts?.id || !element) return;
 
     window.google.accounts.id.renderButton(element, {
       type: 'standard',
@@ -297,10 +302,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    if (isSupabaseConfigured && supabase) {
+    if (isFirebaseConfigured && firebaseAuth) {
+      await signOut(firebaseAuth).catch(() => null);
+    } else if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut().catch(() => null);
-    } else if (isFirebaseConfigured) {
-      await signOut(firebaseAuth);
     } else if (user?.email && window.google?.accounts?.id) {
       window.google.accounts.id.disableAutoSelect();
     }
