@@ -14,6 +14,7 @@ export default function Login() {
     googleClientId,
     authError,
     isFirebaseConfigured,
+    isSupabaseConfigured,
     renderGoogleButton,
     signInWithGoogle,
     checkUserAuth,
@@ -55,37 +56,39 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
-      <section className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
-        <div className="mb-6 text-center">
+      <section className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl space-y-4">
+        <div className="mb-2 text-center">
           <BrandLogo className="justify-center" imageClassName="h-16" />
-          <p className="mt-2 text-sm text-muted-foreground">Inicia sesion con Google</p>
+          <p className="mt-2 text-sm text-muted-foreground">Inicia sesión en PulseLab</p>
         </div>
 
-        {isFirebaseConfigured ? (
+        {(isSupabaseConfigured || isFirebaseConfigured) ? (
           <Button onClick={signInWithGoogle} disabled={!isGoogleReady} className="w-full gap-2 bg-white text-slate-900 hover:bg-slate-100">
             <GoogleIcon className="h-4 w-4" />
             Continuar con Google
           </Button>
         ) : googleClientId ? (
           <div className="flex justify-center" ref={buttonRef} />
-        ) : (
-          <div className="space-y-3">
+        ) : null}
+
+        {import.meta.env.DEV && (
+          <div className="space-y-2.5 pt-2 border-t border-border">
             <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-xs text-muted-foreground">
-              <p className="font-semibold text-primary mb-1">Modo Pruebas Locales (PostgreSQL)</p>
-              Conectado a las 5 tablas relacionales locales (<code className="text-foreground">usuario</code>, <code className="text-foreground">caso_clinico</code>, <code className="text-foreground">pregunta</code>, <code className="text-foreground">resultado</code>, <code className="text-foreground">respuesta_alumno</code>).
+              <p className="font-semibold text-primary mb-1">Conectado a Supabase PostgreSQL (pulselab-dev)</p>
+              Todo cambio que hagas aquí se guarda en vivo en las 5 tablas de tu proyecto en Supabase Cloud.
             </div>
             <Button
               onClick={() => handleLocalDevLogin('admin')}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              Entrar como Docente / Admin (Local)
+              Entrar como Docente / Admin
             </Button>
             <Button
               variant="outline"
               onClick={() => handleLocalDevLogin('student')}
               className="w-full border-primary/40 text-primary hover:bg-primary/10"
             >
-              Entrar como Estudiante (Local)
+              Entrar como Estudiante
             </Button>
           </div>
         )}
@@ -93,7 +96,7 @@ export default function Login() {
         {authError && (
           <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-red-300">
             {authError.type === 'user_not_registered'
-              ? 'Tu usuario esta inactivo o no tiene acceso.'
+              ? 'Tu usuario está inactivo o no tiene acceso.'
               : authError.message}
           </p>
         )}

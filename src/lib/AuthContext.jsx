@@ -3,6 +3,7 @@ import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { dataClient } from '@/api/dataClient';
 import { appParams } from '@/lib/app-params';
 import { firebaseAuth, googleProvider, isFirebaseConfigured } from '@/api/firebaseClient';
+import { supabase, isSupabaseConfigured } from '@/api/supabaseClient';
 
 const AuthContext = createContext();
 const GOOGLE_SCRIPT_ID = 'google-identity-services';
@@ -49,7 +50,7 @@ const isConfiguredAdmin = (email) => getRoleForEmail(email) === 'admin';
 
 const buildUserFromGoogleProfile = async (profile) => {
   const email = profile.email.trim().toLowerCase();
-  const uid = profile.uid || profile.sub;
+  const uid = profile.uid || profile.sub || profile.id;
   let existingUser = null;
   let pendingUser = null;
 
@@ -57,8 +58,8 @@ const buildUserFromGoogleProfile = async (profile) => {
     existingUser = await dataClient.entities.User.get(uid).catch(() => null);
   }
 
-  if (!existingUser && !uid) {
-    const existingUsers = await dataClient.entities.User.filter({ email });
+  if (!existingUser) {
+    const existingUsers = await dataClient.entities.User.filter({ email }).catch(() => []);
     existingUser = existingUsers[0] || null;
   }
 
@@ -77,11 +78,25 @@ const buildUserFromGoogleProfile = async (profile) => {
   }
 
   const nextUser = {
-    id: uid || existingUser?.id,
+    id: existingUser?.id || uid || email,
     email,
-    full_name: existingUser?.full_name || pendingUser?.full_name || profile.displayName || profile.name,
-    name: profile.displayName || profile.name,
-    picture: profile.photoURL || profile.picture,
+    full_name:
+      existingUser?.full_name ||
+      pendingUser?.full_name ||
+      profile.displayName ||
+      profile.user_metadata?.full_name ||
+      profile.name ||
+      email,
+    name:
+      profile.displayName ||
+      profile.user_metadata?.full_name ||
+      profile.name ||
+      existingUser?.full_name ||
+      email,
+    picture:
+      profile.photoURL ||
+      profile.user_metadata?.avatar_url ||
+      profile.picture,
     role: existingUser?.role || pendingUser?.role || getRoleForEmail(email),
     is_active: existingUser?.is_active !== false,
     provider: 'google',
@@ -103,6 +118,54 @@ export const AuthProvider = ({ children }) => {
   const googleClientId = appParams.googleClientId;
 
   useEffect(() => {
+    // 1. Si Supabase Auth está configurado, escuchar cambios de sesión de Supabase
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!session?.user) {
+          await checkUserAuth();
+          return;
+        }
+        try {
+          setIsLoadingAuth(true);
+          const nextUser = await buildUserFromGoogleProfile(session.user);
+          setUser(nextUser);
+          setIsAuthenticated(true);
+          setAuthError(null);
+        } catch (error) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError({
+            type: error.type || 'auth_error',
+            message: error.message || 'No se pudo iniciar sesión',
+          });
+        } finally {
+          setIsLoadingAuth(false);
+        }
+      });
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (!session?.user) return;
+        try {
+          const nextUser = await buildUserFromGoogleProfile(session.user);
+          setUser(nextUser);
+          setIsAuthenticated(true);
+          setAuthError(null);
+        } catch (error) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError({
+            type: error.type || 'auth_error',
+            message: error.message || 'No se pudo iniciar sesión',
+          });
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }
+
+    // 2. Si Firebase Auth está configurado
     if (!isFirebaseConfigured) {
       checkUserAuth();
       return;
@@ -139,7 +202,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (isFirebaseConfigured) {
+    if (isSupabaseConfigured || isFirebaseConfigured) {
       setIsGoogleReady(true);
       return;
     }
@@ -199,6 +262,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signInWithGoogle = async () => {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      return;
+    }
+
     if (isFirebaseConfigured) {
       await signInWithPopup(firebaseAuth, googleProvider);
       return;
@@ -210,7 +283,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const renderGoogleButton = (element, options = {}) => {
-    if (isFirebaseConfigured || !window.google?.accounts?.id || !element) return;
+    if (isSupabaseConfigured || isFirebaseConfigured || !window.google?.accounts?.id || !element) return;
 
     window.google.accounts.id.renderButton(element, {
       type: 'standard',
@@ -224,7 +297,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    if (isFirebaseConfigured) {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut().catch(() => null);
+    } else if (isFirebaseConfigured) {
       await signOut(firebaseAuth);
     } else if (user?.email && window.google?.accounts?.id) {
       window.google.accounts.id.disableAutoSelect();
@@ -247,6 +322,7 @@ export const AuthProvider = ({ children }) => {
     authChecked: !isLoadingAuth,
     googleClientId,
     isFirebaseConfigured,
+    isSupabaseConfigured,
     logout,
     navigateToLogin,
     checkUserAuth,
