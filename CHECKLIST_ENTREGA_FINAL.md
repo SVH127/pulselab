@@ -10,6 +10,7 @@
 - `documentacion/Matriz_Trazabilidad.xlsx`
 - `documentacion/Rubrica_Evaluacion_Final.docx`
 - `minutas/Minuta_Entrevista_Inicial.docx`
+- `minutas/Minutas_Entrevistas.pdf`
 - `minutas/Minuta_Validacion_Prototipo.docx`
 - `diagramas/AS_IS.jpg`
 - `diagramas/Diagrama_AS-IS.pdf`
@@ -27,7 +28,7 @@
 - `documentacion/Matriz_Requerimientos.xlsx` contiene requerimientos reales de PulseLab con estado validado.
 - `documentacion/Matriz_Trazabilidad.xlsx` ya mapea los requerimientos reales contra pantallas y componentes del prototipo.
 - `minutas/Minuta_Validacion_Prototipo.docx` ya fue completada con firmas y evidencia de aprobación del cliente.
-- Si el docente lo pide en PDF, convertir `minutas/Minuta_Entrevista_Inicial.docx` a `Minutas_Entrevistas.pdf`.
+- `minutas/Minutas_Entrevistas.pdf` generado y anexado junto a `minutas/Minuta_Entrevista_Inicial.docx`.
 
 ## No subir manualmente
 

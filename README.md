@@ -45,6 +45,7 @@ La aplicación cubre los flujos principales solicitados en el proyecto:
 - `documentacion/Matriz_Trazabilidad.xlsx`
 - `documentacion/Rubrica_Evaluacion_Final.docx`
 - `minutas/Minuta_Entrevista_Inicial.docx`
+- `minutas/Minutas_Entrevistas.pdf`
 - `minutas/Minuta_Validacion_Prototipo.docx`
 - `diagramas/AS_IS.jpg`
 - `diagramas/Diagrama_AS-IS.pdf`
