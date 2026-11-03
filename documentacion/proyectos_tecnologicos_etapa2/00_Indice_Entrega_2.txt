@@ -1,0 +1,27 @@
+ENTREGABLE 2 — PULSELAB 2.0
+Expediente integrado y actualizado al 31 de octubre de 2026; evidencia técnica con corte al 30 de octubre.
+
+CONTENIDO
+Documento integrado Documento_integrado_PulseLab_Entrega2.docx; 16 criterios modulares (01–16), Excel de costos/cronograma, EDT y carpeta Evidencias_Migracion con nueve capturas. El criterio 15 también incorpora el anexo fotográfico.
+
+EVIDENCIA INTEGRADA
+- Firebase Hosting: release mostrado 28/10/2026 a las 4:45 p. m., virtual-beat-91e9e.web.app.
+- Supabase: pulselab-dev en producción; organización Free, Healthy, PostgreSQL 15, Nano, us-east-1.
+- Cinco tablas relacionales, RLS habilitado y pruebas locales 5/5 aprobadas.
+- Sincronización desde Firestore: 15 usuarios, 6 casos, 13 preguntas, 19 resultados y 32 respuestas; la salida señala finalización sin errores.
+- El tablero indica No migrations y No backups, aunque los scripts dicen migraciones aplicadas. Aclarar historial y comprobar respaldo/restauración.
+- Capturas de app con 3 y 6 casos corresponden a estados diferentes; no tratarlas como conteo actual único.
+
+CALENDARIO Y ESFUERZO
+- Clases: 10-ago a 28-nov-2026. Feriados del periodo: 16-sep, 02-nov y 16-nov.
+- Línea base A–P: 160 h-persona estimadas, no horas registradas. Ventanas en criterio 05 son estimación.
+- Diez casos clínicos y piloto: pendientes de revisión/autorización de la maestra; sin fecha ni horas realizadas asignadas.
+- Firebase y Supabase: planes gratuitos confirmados visualmente; cargos y sobreconsumo no comprobados.
+
+PENDIENTES PARA CIERRE
+1. Revisar los diez casos con la maestra y después acordar/ejecutar el piloto.
+2. Probar RLS con cuentas reales por rol en producción.
+3. Aclarar registro de migraciones y conservar scripts/logs.
+4. Crear y probar respaldo restaurable.
+5. Sustituir fechas/horas estimadas por bitácora real del equipo.
+6. Revisar consumo/cuotas y confirmar cargos cero al cierre.
