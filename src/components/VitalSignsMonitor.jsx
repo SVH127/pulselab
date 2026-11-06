@@ -83,7 +83,7 @@ export default function VitalSignsMonitor({ caseData }) {
           <MonitorToggle mode={mode} setMode={setMode} />
         </div>
         <Suspense fallback={<div className="h-[340px] rounded-2xl border border-border bg-secondary/20 animate-pulse" />}>
-          <VitalSignsMonitor3D caseData={caseData} />
+          <VitalSignsMonitor3D caseData={caseData} onError={() => setMode('2d')} />
         </Suspense>
       </div>
     );

@@ -11,6 +11,7 @@ export default function CaseSession() {
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -23,14 +24,21 @@ export default function CaseSession() {
   const submitting = useRef(false);
 
   useEffect(() => {
+    let active = true;
     Promise.all([
       dataClient.entities.ClinicalCase.get(id),
       dataClient.auth.me(),
     ]).then(([c, u]) => {
+      if (!active) return;
       setCaseData(c);
       setUser(u);
-      setLoading(false);
+    }).catch((error) => {
+      console.error('No se pudo cargar el caso clínico:', error);
+      if (active) setLoadError('No se pudo abrir este caso. Regresa a la lista e inténtalo de nuevo.');
+    }).finally(() => {
+      if (active) setLoading(false);
     });
+    return () => { active = false; };
   }, [id]);
 
   const questions = caseData?.questions || [];
@@ -107,7 +115,10 @@ export default function CaseSession() {
   );
 
   if (!caseData) return (
-    <div className="text-center py-24 text-muted-foreground">Caso no encontrado.</div>
+    <div className="max-w-lg mx-auto rounded-2xl border border-border bg-card p-8 text-center space-y-4">
+      <p className="text-muted-foreground">{loadError || 'Caso no encontrado.'}</p>
+      <Button variant="outline" onClick={() => navigate('/student/cases')}>Volver a Casos</Button>
+    </div>
   );
 
   if (finished) {

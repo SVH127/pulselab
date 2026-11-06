@@ -95,18 +95,32 @@ function drawMonitorTexture(caseData, phase) {
   return canvas;
 }
 
-export default function VitalSignsMonitor3D({ caseData }) {
+export default function VitalSignsMonitor3D({ caseData, onError }) {
   const mountRef = useRef(null);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return undefined;
 
+    let renderer;
+    let texture;
+    let frame;
+    const fallBackTo2D = (error) => {
+      console.error('No se pudo iniciar el monitor 3D; se usará el monitor 2D.', error);
+      if (frame) cancelAnimationFrame(frame);
+      texture?.dispose();
+      renderer?.dispose();
+      renderer?.domElement?.remove();
+      onError?.();
+    };
+
+    try {
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(0, 0.18, 6.4);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -139,7 +153,7 @@ export default function VitalSignsMonitor3D({ caseData }) {
     innerBezel.position.set(-0.17, 0.03, 0.17);
     group.add(innerBezel);
 
-    const texture = new THREE.CanvasTexture(drawMonitorTexture(caseData, 0));
+    texture = new THREE.CanvasTexture(drawMonitorTexture(caseData, 0));
     texture.colorSpace = THREE.SRGBColorSpace;
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(4.58, 2.35),
@@ -212,16 +226,19 @@ export default function VitalSignsMonitor3D({ caseData }) {
     green.position.set(2.4, -1, 1.8);
     scene.add(green);
 
-    let frame;
     const clock = new THREE.Clock();
     const animate = () => {
-      const elapsed = clock.getElapsedTime();
-      group.rotation.y = -0.14 + Math.sin(elapsed * 0.7) * 0.018;
-      group.rotation.x = -0.04 + Math.sin(elapsed * 0.45) * 0.009;
-      texture.image = drawMonitorTexture(caseData, elapsed);
-      texture.needsUpdate = true;
-      renderer.render(scene, camera);
-      frame = requestAnimationFrame(animate);
+      try {
+        const elapsed = clock.getElapsedTime();
+        group.rotation.y = -0.14 + Math.sin(elapsed * 0.7) * 0.018;
+        group.rotation.x = -0.04 + Math.sin(elapsed * 0.45) * 0.009;
+        texture.image = drawMonitorTexture(caseData, elapsed);
+        texture.needsUpdate = true;
+        renderer.render(scene, camera);
+        frame = requestAnimationFrame(animate);
+      } catch (error) {
+        fallBackTo2D(error);
+      }
     };
     animate();
 
@@ -240,7 +257,11 @@ export default function VitalSignsMonitor3D({ caseData }) {
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [caseData]);
+    } catch (error) {
+      fallBackTo2D(error);
+      return undefined;
+    }
+  }, [caseData, onError]);
 
   return (
     <section className="rounded-2xl border border-border bg-secondary/20 p-3">
