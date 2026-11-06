@@ -23,7 +23,7 @@ export function AudioExperienceProvider({ children }) {
     if (!AudioCtor) return null;
     const context = new AudioCtor();
     const master = context.createGain();
-    master.gain.value = 0.22;
+    master.gain.value = 0.5;
     master.connect(context.destination);
     audioRef.current = { context, master, ambience: null, monitorTimer: null };
     return audioRef.current;
@@ -77,7 +77,7 @@ export function AudioExperienceProvider({ children }) {
       oscillator.connect(gain);
       gain.connect(master);
       oscillator.start();
-      gain.gain.setTargetAtTime(index === 0 ? 0.009 : 0.005, context.currentTime, 2 + index);
+      gain.gain.setTargetAtTime(index === 0 ? 0.06 : 0.035, context.currentTime, 2 + index);
       return { oscillator, gain };
     });
   }, [getAudio]);
@@ -85,8 +85,8 @@ export function AudioExperienceProvider({ children }) {
   const startMonitor = useCallback(() => {
     const audio = getAudio();
     if (!audio || audio.monitorTimer || !enabledRef.current) return;
-    playTone(880, 0.1, 0.055, 'sine');
-    audio.monitorTimer = window.setInterval(() => playTone(880, 0.1, 0.055, 'sine'), 1000);
+    playTone(880, 0.12, 0.16, 'sine');
+    audio.monitorTimer = window.setInterval(() => playTone(880, 0.12, 0.16, 'sine'), 1000);
   }, [getAudio, playTone]);
 
   useEffect(() => {
@@ -120,7 +120,7 @@ export function AudioExperienceProvider({ children }) {
   useEffect(() => {
     const handleClick = (event) => {
       if (!enabledRef.current || !event.target.closest('button, [role="button"]')) return;
-      playTone(660, 0.045, 0.035, 'triangle');
+      playTone(660, 0.055, 0.1, 'triangle');
     };
     document.addEventListener('click', handleClick, true);
     return () => document.removeEventListener('click', handleClick, true);
