@@ -8,7 +8,6 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { dataClient } from '@/api/dataClient';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { AudioExperienceProvider } from '@/components/AudioExperience';
 
 // Auth pages
 import Login from '@/pages/Login';
@@ -102,9 +101,7 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <AudioExperienceProvider>
-            <AuthenticatedApp />
-          </AudioExperienceProvider>
+          <AuthenticatedApp />
         </Router>
         <Toaster />
       </QueryClientProvider>
